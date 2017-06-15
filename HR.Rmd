@@ -1,0 +1,108 @@
+
+#HR Data Analytics
+##Galina Endarova
+#Overview
+An analysis of HR data published on https://www.kaggle.com/ludobenistant/hr-analytics. The anlaysis itself was also published on https://www.kaggle.com/gratipine/d/ludobenistant/hr-analytics/employee-retention-prediction-using-random-forest/ It shows:
+#Analysis
+```{r, message=FALSE, echo=FALSE}
+data<-read.csv("HR.csv")
+
+library(ggplot2)
+library(ggthemes)
+library(scales)
+library(dplyr)
+library(randomForest)
+library(corrplot)
+
+set.seed(123)
+testIndeces<-sample(nrow(data), floor(nrow(data)*0.33))
+
+train<-data[-testIndeces,]
+test<-data[testIndeces,]
+rm("data")
+#no missing values, so nothing to do there
+```
+##Data
+The dataset that we are dealing with has `r nrow(data)` observations and `r ncol(data)` types of observations. From the dataset we can see that there is a 23.81% turnover rate. This is not too bad, but because of high costs associated with filling positions, it is good if we can predict what keeps people happy so that they don't leave.
+
+##Prediction
+###Building the model
+We use the Random forest to build a prediction model.
+#Appendix
+##Full code:
+```{r, message=FALSE}
+data<-read.csv("HR.csv")
+
+library(ggplot2)
+library(ggthemes)
+library(scales)
+library(dplyr)
+library(randomForest)
+library(corrplot)
+
+set.seed(123)
+testIndeces<-sample(nrow(data), floor(nrow(data)*0.33))
+
+train<-data[-testIndeces,]
+test<-data[testIndeces,]
+rm("data")
+#no missing values, so nothing to do there
+```
+
+##Model Building
+```{r}
+#Random forest
+#chart coordinate table
+rf_model<-randomForest(as.factor(left)~satisfaction_level+last_evaluation+
+                       number_project + average_montly_hours +
+                       time_spend_company + Work_accident + promotion_last_5years + salary,
+                       data=train)
+
+plot(rf_model)
+legend('topright', colnames(rf_model$err.rate), col=1:3, fill=1:3)
+```
+
+##Get Importance
+```{r}
+importance<-importance(rf_model)
+varImportance<-data.frame(Variables=row.names(importance),
+                          Importance = round(importance[,"MeanDecreaseGini"],2))
+```
+```{r}
+#Create a rank variable based on importance
+rankImportance <- varImportance %>%mutate(Rank = paste0('#',dense_rank(desc(Importance))))
+
+# Use ggplot2 to visualize the relative importance of variables
+ggplot(rankImportance, aes(x = reorder(Variables, Importance), 
+                           y = Importance, fill = Importance)) +
+  geom_bar(stat='identity') + 
+  geom_text(aes(x = Variables, y = 0.5, label = Rank),
+            hjust=0, vjust=0.55, size = 4, colour = 'red') +
+  labs(x = 'Variables') +
+  coord_flip()+
+  theme_few()
+```
+```{r}
+#equal to test - column for left or no
+testForPrediction<-test[,-7]
+
+prediction<-predict(rf_model, testForPrediction)
+prediction<-as.numeric(prediction)-1
+success<-prediction==test$left
+successRate<-length(which(success))/nrow(test)
+#compare with the actual train model
+
+rf_model<-randomForest(as.factor(left)~last_evaluation+
+                         number_project + average_montly_hours +
+                         time_spend_company + Work_accident + promotion_last_5years + salary,
+                       data=train)
+
+plot(rf_model)
+legend('topright', colnames(rf_model$err.rate), col=1:3, fill=1:3)
+```
+
+##Correlations
+```{r}
+numberOfProjects<-cor(train$number_project, train$left)
+train$salary<-as.numeric(train$salary)
+```
